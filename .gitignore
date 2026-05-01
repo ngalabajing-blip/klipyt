@@ -1,0 +1,67 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.coverage
+htmlcov/
+*.egg-info/
+dist/
+build/
+
+# Node
+node_modules/
+.next/
+out/
+.turbo/
+.vercel/
+*.tsbuildinfo
+next-env.d.ts
+
+# Env / secrets
+.env
+.env.local
+.env.development
+.env.production
+*.secrets
+secrets/
+
+# Storage / runtime artifacts
+storage/
+data/
+uploads/
+tmp/
+logs/
+*.log
+*.sqlite
+*.sqlite3
+*.db
+
+# Editor / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*~
+
+# Media artifacts (should be in object storage, not git)
+*.mp4
+*.mov
+*.webm
+*.wav
+*.mp3
+*.m4a
+!**/fixtures/*.mp4
+!**/fixtures/*.wav
+
+# CI / coverage
+coverage/
+.nyc_output/

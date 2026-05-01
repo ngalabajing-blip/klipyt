@@ -106,6 +106,13 @@ Open http://localhost:3000, paste a YouTube link, watch clips appear in the dash
 
 Auth: `api-key: <key>` header. Base URL: `https://token-plan-sgp.xiaomimimo.com/v1`.
 
+## CI
+
+A GitHub Actions workflow template lives at [`docs/ci-template.yml`](docs/ci-template.yml).
+To enable CI, copy it to `.github/workflows/ci.yml` (requires a token with
+`workflow` scope, or use the GitHub web UI: Actions → New workflow → set up a
+workflow yourself → paste).
+
 ## License
 
 MIT

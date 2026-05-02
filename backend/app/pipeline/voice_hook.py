@@ -106,7 +106,24 @@ def prepend_audio_freezeframe(
     work_dir.mkdir(parents=True, exist_ok=True)
 
     intro_path = work_dir / "intro.mp4"
-    # 1) Build the intro: still frame loop at 30 fps with hook audio.
+    # 1a) Extract the first frame of the clip as a still image.
+    first_frame = work_dir / "first_frame.png"
+    subprocess.run(
+        [
+            "ffmpeg",
+            "-y",
+            "-i",
+            str(clip_video),
+            "-vf",
+            "select=eq(n\\,0),scale=1080:1920:flags=lanczos,setsar=1",
+            "-frames:v",
+            "1",
+            str(first_frame),
+        ],
+        check=True,
+        capture_output=True,
+    )
+    # 1b) Loop that still + hook audio into a short MP4 intro.
     subprocess.run(
         [
             "ffmpeg",
@@ -114,13 +131,13 @@ def prepend_audio_freezeframe(
             "-loop",
             "1",
             "-i",
-            str(clip_video),
+            str(first_frame),
             "-i",
             str(hook_audio),
             "-t",
             f"{freeze_seconds:.3f}",
-            "-vf",
-            "select=eq(n\\,0),scale=1080:1920:flags=lanczos,setsar=1,fps=30",
+            "-r",
+            "30",
             "-c:v",
             "libx264",
             "-preset",

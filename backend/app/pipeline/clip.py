@@ -56,12 +56,30 @@ def _probe_resolution(video_path: Path) -> tuple[int, int]:
 
 
 def _detect_face_centres(video_path: Path, fps: float = 1.0) -> list[tuple[float, float]]:
-    """Return (timestamp, normalized_x_centre) samples — best-effort."""
+    """Return (timestamp, normalized_x_centre) samples — best-effort.
+
+    Tries the legacy ``mediapipe.solutions.face_detection`` API first (faster,
+    simpler) and falls back to the new ``mediapipe.tasks`` API or to a static
+    centre crop if neither is available.
+    """
     try:
         import cv2  # type: ignore
         import mediapipe as mp  # type: ignore
     except Exception as exc:  # pragma: no cover - optional dep
         logger.warning("MediaPipe unavailable, falling back to centre crop: %s", exc)
+        return []
+
+    # Mediapipe 0.10.x dropped the legacy `solutions` namespace by default.
+    face_detection = None
+    try:
+        face_detection = mp.solutions.face_detection.FaceDetection(  # type: ignore[attr-defined]
+            model_selection=1, min_detection_confidence=0.5
+        )
+    except AttributeError:
+        logger.info(
+            "mediapipe.solutions.face_detection unavailable on this build; "
+            "using centre-crop fallback"
+        )
         return []
 
     cap = cv2.VideoCapture(str(video_path))
@@ -70,9 +88,6 @@ def _detect_face_centres(video_path: Path, fps: float = 1.0) -> list[tuple[float
     try:
         video_fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
         step = max(1, int(round(video_fps / max(0.1, fps))))
-        face_detection = mp.solutions.face_detection.FaceDetection(
-            model_selection=1, min_detection_confidence=0.5
-        )
         idx = 0
         samples: list[tuple[float, float]] = []
         while True:

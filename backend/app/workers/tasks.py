@@ -36,6 +36,7 @@ def process_auto_clip_job(
     job_id: str,
     *,
     source_url: str | None = None,
+    source_object_key: str | None = None,
     enable_voice_hook: bool = False,
     target_clip_count: int = 6,
 ) -> str:
@@ -46,6 +47,15 @@ def process_auto_clip_job(
 
     work_dir = Path("./storage/work") / job_id
     work_dir.mkdir(parents=True, exist_ok=True)
+
+    # If the source is already in our storage, fetch to a local file so the
+    # pipeline can read it directly (yt-dlp is bypassed).
+    source_path: Path | None = None
+    if source_object_key:
+        src_dir = work_dir / "src"
+        src_dir.mkdir(parents=True, exist_ok=True)
+        source_path = src_dir / Path(source_object_key).name
+        storage.download_to(source_object_key, source_path)
 
     with Session(engine) as session:
         job = session.get(Job, job_id)
@@ -73,7 +83,8 @@ def process_auto_clip_job(
         try:
             result = asyncio.run(
                 run_auto_clip(
-                    source_url=source_url or job.source_url,
+                    source_url=source_url or job.source_url if source_path is None else None,
+                    source_path=source_path,
                     work_dir=work_dir,
                     target_clip_count=target_clip_count,
                     enable_voice_hook=enable_voice_hook,

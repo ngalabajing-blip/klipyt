@@ -23,9 +23,12 @@ def create_app() -> FastAPI:
         description="Auto-clip generator powered by Xiaomi MiMo.",
         version=__version__,
     )
+    # Support comma-separated origins via FRONTEND_BASE_URL env var
+    origins = [o.strip() for o in settings.frontend_base_url.split(",") if o.strip()]
+    origins.extend(["http://localhost:3000", "http://localhost:5173"])
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=[settings.frontend_base_url, "http://localhost:3000"],
+        allow_origins=origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],

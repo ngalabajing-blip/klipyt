@@ -5,6 +5,7 @@ from __future__ import annotations
 import base64
 import logging
 import os
+import subprocess
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
@@ -13,6 +14,22 @@ from typing import Any
 from yt_dlp import YoutubeDL
 
 logger = logging.getLogger(__name__)
+
+
+def _ensure_deno() -> None:
+    """Install deno if not available and add to PATH."""
+    deno_path = Path("/root/.deno/bin/deno")
+    if not deno_path.exists():
+        try:
+            subprocess.run(
+                ["sh", "-c", "curl -fsSL https://deno.land/install.sh | sh"],
+                check=True, capture_output=True, timeout=120,
+            )
+        except Exception:
+            logger.warning("Failed to install deno", exc_info=True)
+    deno_bin = "/root/.deno/bin"
+    if deno_bin not in os.environ.get("PATH", ""):
+        os.environ["PATH"] = deno_bin + ":" + os.environ.get("PATH", "")
 
 
 def _get_cookiefile() -> str | None:
@@ -54,6 +71,7 @@ def download_video(
     """Download a video to ``out_dir`` and return its local path + metadata."""
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
+    _ensure_deno()
 
     ydl_opts: dict[str, Any] = {
         "outtmpl": str(out_dir / "%(id)s.%(ext)s"),

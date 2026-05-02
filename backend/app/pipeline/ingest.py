@@ -27,6 +27,12 @@ def _ensure_deno() -> None:
             )
         except Exception:
             logger.warning("Failed to install deno", exc_info=True)
+    # Symlink to /usr/local/bin so yt-dlp subprocess can find it
+    if deno_path.exists() and not Path("/usr/local/bin/deno").exists():
+        try:
+            Path("/usr/local/bin/deno").symlink_to(deno_path)
+        except Exception:
+            pass
     deno_bin = "/root/.deno/bin"
     if deno_bin not in os.environ.get("PATH", ""):
         os.environ["PATH"] = deno_bin + ":" + os.environ.get("PATH", "")
@@ -72,6 +78,12 @@ def download_video(
     out_dir = Path(out_dir)
     out_dir.mkdir(parents=True, exist_ok=True)
     _ensure_deno()
+    # Verify deno is accessible
+    try:
+        r = subprocess.run(["deno", "--version"], capture_output=True, text=True, timeout=10)
+        logger.info("Deno check: %s", r.stdout.strip().split("\n")[0] if r.returncode == 0 else "NOT FOUND")
+    except Exception as e:
+        logger.warning("Deno not accessible: %s", e)
 
     ydl_opts: dict[str, Any] = {
         "outtmpl": str(out_dir / "%(id)s.%(ext)s"),

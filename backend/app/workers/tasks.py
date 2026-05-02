@@ -179,7 +179,7 @@ def process_auto_clip_job(
                         source_title=title, source_duration=duration)
 
             # ---- Pick clip windows (AI if captions available, else even-split) ----
-            _update_job(session, job_id, status="analyzing", progress=45)
+            _update_job(session, job_id, status="detecting", progress=45)
             ai_windows = _ai_clip_windows(subtitle_path, target_count=target_clip_count)
             if ai_windows:
                 logger.info("Using %d AI-selected clips", len(ai_windows))

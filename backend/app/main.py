@@ -4,9 +4,11 @@ from __future__ import annotations
 
 import logging
 import os
+from pathlib import Path
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app import __version__
 from app.api import ai_video, health, jobs, tts, uploads
@@ -40,15 +42,17 @@ def create_app() -> FastAPI:
     app.include_router(ai_video.router)
     app.include_router(uploads.router)
 
+    # Serve locally-stored clips/files
+    storage_dir = Path("./storage")
+    storage_dir.mkdir(parents=True, exist_ok=True)
+    app.mount("/files", StaticFiles(directory=str(storage_dir)), name="files")
+
     @app.get("/")
     async def root():
         return {"name": "Mager Klip API", "version": __version__, "docs": "/docs"}
 
     @app.on_event("startup")
     async def _startup() -> None:
-        # Idempotent schema bootstrap: safe on Postgres + SQLite, no-op when
-        # tables already exist. Set ``SKIP_DB_INIT=1`` to disable when Alembic
-        # is wired up later.
         if os.environ.get("SKIP_DB_INIT") == "1":
             return
         async with engine.begin() as conn:

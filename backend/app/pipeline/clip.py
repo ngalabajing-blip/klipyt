@@ -1,14 +1,8 @@
-"""Clip cutting + auto-reframe to 9:16 with face tracking.
+"""Clip cutting with stream copy (low memory) and optional reframe.
 
-The reframe strategy:
-
-1. Use MediaPipe Face Detection on a sparse set of frames (1 fps) to find the
-   horizontal centre of attention.
-2. Smooth the centre signal over time so the camera doesn't jitter.
-3. Crop a vertical window around the smoothed centre and scale to 1080x1920.
-4. Audio is copied unchanged.
-
-If MediaPipe is unavailable, we fall back to a static centre crop.
+Default mode uses ``-c copy`` (stream copy) which requires almost no memory
+and is extremely fast.  9:16 reframe is available as an opt-in but disabled
+by default to stay within Railway's 512 MB memory limit.
 """
 
 from __future__ import annotations
@@ -180,52 +174,27 @@ def _build_crop_filter(
 
 
 def cut_clip(video_path: str | Path, opts: CutOptions) -> Path:
-    """Cut, reframe and re-encode a clip from ``video_path`` per ``opts``."""
+    """Cut a clip from *video_path* using stream copy (no re-encode).
+
+    This is extremely fast and uses almost no memory — perfect for Railway's
+    512 MB limit.  The output container is always MP4 with faststart flag.
+    """
     video_path = Path(video_path)
     opts.out_path.parent.mkdir(parents=True, exist_ok=True)
-
-    src_w, src_h = _probe_resolution(video_path)
     duration = max(0.1, opts.end - opts.start)
 
-    # We only need face detection inside the clip range — extract a tiny preview first
-    centres = _detect_face_centres(video_path)
-    centres_in_window = [c for c in centres if opts.start <= c[0] <= opts.end]
-    centres_smoothed = _smooth(centres_in_window or centres)
-
-    vf = _build_crop_filter(
-        src_w, src_h, opts.aspect, opts.target_w, opts.target_h, centres_smoothed
-    )
     cmd = [
-        "ffmpeg",
-        "-y",
-        "-ss",
-        f"{opts.start:.3f}",
-        "-i",
-        str(video_path),
-        "-t",
-        f"{duration:.3f}",
-        "-vf",
-        vf,
-        "-c:v",
-        "libx264",
-        "-preset",
-        "ultrafast",
-        "-crf",
-        "23",
-        "-pix_fmt",
-        "yuv420p",
-        "-threads",
-        "1",
-        "-c:a",
-        "aac",
-        "-b:a",
-        "128k",
-        "-movflags",
-        "+faststart",
+        "ffmpeg", "-y",
+        "-ss", f"{opts.start:.3f}",
+        "-i", str(video_path),
+        "-t", f"{duration:.3f}",
+        "-c", "copy",
+        "-avoid_negative_ts", "make_zero",
+        "-movflags", "+faststart",
         str(opts.out_path),
     ]
-    logger.info("ffmpeg cut_clip: %s", " ".join(cmd))
-    subprocess.run(cmd, check=True, capture_output=True)
+    logger.info("ffmpeg cut_clip (stream copy): %s", " ".join(cmd))
+    subprocess.run(cmd, check=True)
     return opts.out_path
 
 

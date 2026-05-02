@@ -58,7 +58,9 @@ def download_video(
     ydl_opts: dict[str, Any] = {
         "outtmpl": str(out_dir / "%(id)s.%(ext)s"),
         "format": (
-            f"bestvideo[height<={max_height}]+bestaudio/best[height<={max_height}]/best"
+            f"bestvideo[height<={max_height}][ext=mp4]+bestaudio[ext=m4a]/"
+            f"bestvideo[height<={max_height}]+bestaudio/"
+            f"best[height<={max_height}]/best"
         ),
         "merge_output_format": "mp4",
         "noplaylist": True,

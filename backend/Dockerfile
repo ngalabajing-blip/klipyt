@@ -30,4 +30,4 @@ EXPOSE 8000
 # Process model: API by default. Override CMD to run the worker.
 #   web:    uvicorn app.main:app --host 0.0.0.0 --port 8000
 #   worker: python -m app.workers.queue
-CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]

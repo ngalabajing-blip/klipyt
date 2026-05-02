@@ -2,7 +2,10 @@
 
 from __future__ import annotations
 
+import base64
 import logging
+import os
+import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -10,6 +13,22 @@ from typing import Any
 from yt_dlp import YoutubeDL
 
 logger = logging.getLogger(__name__)
+
+
+def _get_cookiefile() -> str | None:
+    """Return path to a cookie file from YOUTUBE_COOKIES env var (base64-encoded Netscape format)."""
+    b64 = os.environ.get("YOUTUBE_COOKIES")
+    if not b64:
+        return None
+    try:
+        data = base64.b64decode(b64)
+        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".txt", mode="wb")
+        tmp.write(data)
+        tmp.close()
+        return tmp.name
+    except Exception:
+        logger.warning("Failed to decode YOUTUBE_COOKIES env var", exc_info=True)
+        return None
 
 
 @dataclass(slots=True)
@@ -58,6 +77,10 @@ def download_video(
     }
     if cookiefile:
         ydl_opts["cookiefile"] = cookiefile
+    else:
+        auto_cookie = _get_cookiefile()
+        if auto_cookie:
+            ydl_opts["cookiefile"] = auto_cookie
 
     with YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)

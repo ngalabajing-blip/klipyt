@@ -9,12 +9,18 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 RUN apt-get update && apt-get install -y --no-install-recommends \
         ffmpeg \
         curl \
+        unzip \
         libgl1 \
         libglib2.0-0 \
         libsndfile1 \
         ca-certificates \
         fonts-dejavu-core \
     && rm -rf /var/lib/apt/lists/*
+
+# Install deno (required by yt-dlp for YouTube JS extraction)
+RUN curl -fsSL https://deno.land/install.sh | sh
+ENV DENO_INSTALL="/root/.deno"
+ENV PATH="$DENO_INSTALL/bin:$PATH"
 
 WORKDIR /app
 

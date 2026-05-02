@@ -17,7 +17,7 @@ def redis_conn() -> redis.Redis:
 
 @lru_cache
 def default_queue() -> Queue:
-    return Queue("default", connection=redis_conn(), default_timeout=60 * 60)
+    return Queue("default", connection=redis_conn(), default_timeout=600)
 
 
 def main() -> None:  # pragma: no cover - process entrypoint

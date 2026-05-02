@@ -11,7 +11,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
-from app.api import ai_video, health, jobs, tts, uploads
+from app.api import admin, ai_video, health, jobs, tts, uploads
 from app.config import settings
 from app.db.models import Base
 from app.db.session import engine
@@ -41,6 +41,7 @@ def create_app() -> FastAPI:
     app.include_router(tts.router)
     app.include_router(ai_video.router)
     app.include_router(uploads.router)
+    app.include_router(admin.router)
 
     # Serve locally-stored clips/files
     storage_dir = Path("./storage")

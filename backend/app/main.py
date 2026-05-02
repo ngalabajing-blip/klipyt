@@ -37,6 +37,10 @@ def create_app() -> FastAPI:
     app.include_router(ai_video.router)
     app.include_router(uploads.router)
 
+    @app.get("/")
+    async def root():
+        return {"name": "Mager Klip API", "version": __version__, "docs": "/docs"}
+
     @app.on_event("startup")
     async def _startup() -> None:
         # Idempotent schema bootstrap: safe on Postgres + SQLite, no-op when

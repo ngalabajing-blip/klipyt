@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -43,6 +43,17 @@ class Settings(BaseSettings):
 
     # ---- Redis / queue ----
     redis_url: str = Field(default="redis://localhost:6379/0")
+
+    @field_validator("database_url")
+    @classmethod
+    def _normalize_db_url(cls, v: str) -> str:
+        # Railway / Heroku / Render hand out plain ``postgresql://`` URLs, but
+        # SQLAlchemy's async engine needs an explicit driver prefix.
+        if v.startswith("postgres://"):
+            v = "postgresql://" + v[len("postgres://") :]
+        if v.startswith("postgresql://"):
+            v = "postgresql+psycopg://" + v[len("postgresql://") :]
+        return v
 
     # ---- Storage ----
     s3_endpoint_url: str = Field(default="http://localhost:9000")

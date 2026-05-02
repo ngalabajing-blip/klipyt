@@ -34,12 +34,17 @@ next-env.d.ts
 *.secrets
 secrets/
 
-# Storage / runtime artifacts
-storage/
-data/
-uploads/
-tmp/
-logs/
+# Storage / runtime artifacts (top-level only — backend/app/storage/ is source code)
+/storage/
+/data/
+/uploads/
+/tmp/
+/logs/
+backend/storage/
+backend/data/
+backend/uploads/
+backend/tmp/
+backend/logs/
 *.log
 *.sqlite
 *.sqlite3

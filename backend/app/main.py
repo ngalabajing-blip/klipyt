@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -38,10 +39,13 @@ def create_app() -> FastAPI:
 
     @app.on_event("startup")
     async def _startup() -> None:
-        # Create tables on first boot for SQLite / dev use. Use Alembic in prod.
-        if settings.database_url.startswith("sqlite"):
-            async with engine.begin() as conn:
-                await conn.run_sync(Base.metadata.create_all)
+        # Idempotent schema bootstrap: safe on Postgres + SQLite, no-op when
+        # tables already exist. Set ``SKIP_DB_INIT=1`` to disable when Alembic
+        # is wired up later.
+        if os.environ.get("SKIP_DB_INIT") == "1":
+            return
+        async with engine.begin() as conn:
+            await conn.run_sync(Base.metadata.create_all)
 
     return app
 

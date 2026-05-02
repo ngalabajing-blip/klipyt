@@ -41,13 +41,17 @@ async def create_job(payload: JobCreateRequest, session: SessionDep) -> JobOut:
     job_id = job.id
 
     queue = default_queue()
-    queue.enqueue(
-        process_auto_clip_job,
-        job_id=job_id,
-        source_url=payload.source_url,
-        enable_voice_hook=payload.enable_voice_hook,
-        target_clip_count=payload.target_clip_count,
-        job_timeout=60 * 60,
+    # `job_id` is a reserved RQ kwarg, so pass our task arguments via `kwargs=`.
+    queue.enqueue_call(
+        func=process_auto_clip_job,
+        kwargs={
+            "job_id": job_id,
+            "source_url": payload.source_url,
+            "source_object_key": payload.source_object_key,
+            "enable_voice_hook": payload.enable_voice_hook,
+            "target_clip_count": payload.target_clip_count,
+        },
+        timeout=60 * 60,
     )
     await session.refresh(job, attribute_names=["clips"])
     return _job_out(job)

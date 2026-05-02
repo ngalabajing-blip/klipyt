@@ -79,6 +79,11 @@ def _download_via_cli(url: str, out_dir: Path, max_height: int, cookiefile: str 
         "--no-playlist",
         "--write-thumbnail",
         "--convert-thumbnails", "jpg",
+        # Pull YouTube auto-generated captions so the highlight pipeline can
+        # run MiMo against them — saves us from loading Whisper on the worker.
+        "--write-auto-subs",
+        "--sub-langs", "en.*,id.*,en,id",
+        "--sub-format", "vtt",
         "--no-check-certificates",
         "--remote-components", "ejs:github",
         "--extractor-args", f"youtube:player_client={_PLAYER_CLIENTS}",
@@ -150,6 +155,7 @@ class IngestResult:
     language: str | None
     extractor: str
     info: dict[str, Any]
+    subtitle_path: Path | None = None
 
 
 def download_video(
@@ -186,6 +192,8 @@ def download_video(
         info = _json.loads(info_result.stdout) if info_result.returncode == 0 else {}
         thumb_files = list(video_path.parent.glob(f"{video_path.stem}.*"))
         thumb_files = [t for t in thumb_files if t.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}]
+        from app.pipeline.captions import find_subtitles_for
+        subtitle_path = find_subtitles_for(video_path)
         return IngestResult(
             path=video_path,
             title=info.get("title") or url,
@@ -194,6 +202,7 @@ def download_video(
             language=info.get("language"),
             extractor=info.get("extractor", "unknown"),
             info=info,
+            subtitle_path=subtitle_path,
         )
 
     # Fallback to Python API
@@ -207,6 +216,9 @@ def download_video(
         "ignoreerrors": False,
         "writethumbnail": True,
         "convert_thumbnails": "jpg",
+        "writeautomaticsub": True,
+        "subtitleslangs": ["en.*", "id.*", "en", "id"],
+        "subtitlesformat": "vtt",
         "retries": 5,
         "fragment_retries": 5,
         "extractor_retries": 3,
@@ -247,6 +259,9 @@ def download_video(
     thumb_files = [c for c in candidates if c.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}]
     thumb_path = str(thumb_files[0]) if thumb_files else info.get("thumbnail")
 
+    from app.pipeline.captions import find_subtitles_for
+    subtitle_path = find_subtitles_for(video_path)
+
     return IngestResult(
         path=video_path,
         title=info.get("title") or url,
@@ -255,4 +270,5 @@ def download_video(
         language=info.get("language"),
         extractor=info.get("extractor", "unknown"),
         info=info,
+        subtitle_path=subtitle_path,
     )

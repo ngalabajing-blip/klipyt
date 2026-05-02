@@ -76,6 +76,7 @@ def download_video(
     ydl_opts: dict[str, Any] = {
         "outtmpl": str(out_dir / "%(id)s.%(ext)s"),
         "format": "best[height<=1080]/best",
+        "extractor_args": {"youtube": {"player_client": ["ios", "web", "tv"]}},
         "merge_output_format": "mp4",
         "noplaylist": True,
         "quiet": True,
@@ -83,7 +84,6 @@ def download_video(
         "ignoreerrors": False,
         "writethumbnail": True,
         "convert_thumbnails": "jpg",
-        "extractor_args": {"youtube": {"player_client": ["ios", "web"]}},
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         },

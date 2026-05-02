@@ -38,29 +38,73 @@ def _ensure_deno() -> None:
         os.environ["PATH"] = deno_bin + ":" + os.environ.get("PATH", "")
 
 
+# Format selection optimized for Railway's 512 MB memory limit:
+#   1. Format 18  — YouTube legacy 360p mp4 with audio (single file, ~tiny).
+#   2. best <=480p with audio in one container — small single-file formats.
+#   3. best <=720p combined (mux temp ~2x size; still fits on 512 MB box).
+#   4. anything best — last resort.
+_DEFAULT_FORMAT = (
+    "18/best[height<=480][acodec!=none]/best[height<=720][acodec!=none]/"
+    "best[height<=720]/best"
+)
+
+# Cookie-respecting player clients in fallback order. Notably *not* `ios`,
+# which silently drops cookies — see
+# https://dev.to/nareshipme/fixing-yt-dlp-in-docker-n-challenge-ejs-scripts-deno-2x-and-the-playerclientios-cookie-trap-54d6
+_PLAYER_CLIENTS = "web,mweb,tv,android"
+
+
+def _ytdlp_bot_blocked(stderr: str) -> bool:
+    """Detect YouTube's 'Sign in to confirm you're not a bot' wall."""
+    s = (stderr or "").lower()
+    return "sign in to confirm" in s or ("confirm you" in s and "bot" in s)
+
+
+class BotDetectionError(RuntimeError):
+    """Raised when YouTube blocks the download with bot-detection."""
+
+
 def _download_via_cli(url: str, out_dir: Path, max_height: int, cookiefile: str | None) -> Path | None:
-    """Try downloading via yt-dlp CLI subprocess (better deno/PATH integration)."""
-    import glob as _glob
+    """Try downloading via yt-dlp CLI subprocess (better deno/PATH integration).
+
+    Returns the downloaded file path on success, ``None`` on a generic failure
+    that should fall back to the Python API.  Raises :class:`BotDetectionError`
+    if YouTube specifically blocked the request — in that case fallback won't
+    help and the caller should surface the error to the user.
+    """
     cmd = [
         "yt-dlp",
-        "-f", "best",
+        "-f", _DEFAULT_FORMAT,
         "--merge-output-format", "mp4",
         "--no-playlist",
         "--write-thumbnail",
         "--convert-thumbnails", "jpg",
         "--no-check-certificates",
         "--remote-components", "ejs:github",
+        "--extractor-args", f"youtube:player_client={_PLAYER_CLIENTS}",
+        "--retries", "5",
+        "--fragment-retries", "5",
+        "--extractor-retries", "3",
+        "--socket-timeout", "30",
         "-o", str(out_dir / "%(id)s.%(ext)s"),
     ]
     if cookiefile:
         cmd.extend(["--cookies", cookiefile])
     cmd.append(url)
     try:
-        logger.info("yt-dlp CLI: %s", " ".join(cmd[:8]))
+        logger.info("yt-dlp CLI (cookies=%s): %s", bool(cookiefile), " ".join(cmd[:10]))
         r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
-        logger.info("yt-dlp stdout: %s", r.stdout[-500:] if r.stdout else "empty")
-        logger.info("yt-dlp stderr: %s", r.stderr[-500:] if r.stderr else "empty")
+        if r.stdout:
+            logger.info("yt-dlp stdout: %s", r.stdout[-500:])
+        if r.stderr:
+            logger.info("yt-dlp stderr: %s", r.stderr[-500:])
         if r.returncode != 0:
+            if _ytdlp_bot_blocked(r.stderr):
+                raise BotDetectionError(
+                    "YouTube blocked the download with bot-detection. "
+                    "Set the YOUTUBE_COOKIES env var (base64 of a Netscape cookies.txt "
+                    "exported from a logged-in YouTube session) and redeploy."
+                )
             logger.warning("yt-dlp CLI failed (rc=%d): %s", r.returncode, r.stderr[-300:])
             return None
         # Find the downloaded video file
@@ -69,6 +113,11 @@ def _download_via_cli(url: str, out_dir: Path, max_height: int, cookiefile: str 
             if f.suffix.lower() in video_exts:
                 return f
         return None
+    except subprocess.TimeoutExpired:
+        logger.warning("yt-dlp CLI timed out after 600s for %s", url)
+        return None
+    except BotDetectionError:
+        raise
     except Exception as e:
         logger.warning("yt-dlp CLI error: %s", e)
         return None
@@ -150,7 +199,7 @@ def download_video(
     # Fallback to Python API
     ydl_opts: dict[str, Any] = {
         "outtmpl": str(out_dir / "%(id)s.%(ext)s"),
-        "format": "best",
+        "format": _DEFAULT_FORMAT,
         "merge_output_format": "mp4",
         "noplaylist": True,
         "quiet": True,
@@ -158,7 +207,11 @@ def download_video(
         "ignoreerrors": False,
         "writethumbnail": True,
         "convert_thumbnails": "jpg",
-        "extractor_args": {"youtube": {"player_client": ["web"]}},
+        "retries": 5,
+        "fragment_retries": 5,
+        "extractor_retries": 3,
+        "socket_timeout": 30,
+        "extractor_args": {"youtube": {"player_client": _PLAYER_CLIENTS.split(",")}},
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         },
@@ -169,8 +222,17 @@ def download_video(
     if cookiefile:
         ydl_opts["cookiefile"] = cookiefile
 
-    with YoutubeDL(ydl_opts) as ydl:
-        info = ydl.extract_info(url, download=True)
+    try:
+        with YoutubeDL(ydl_opts) as ydl:
+            info = ydl.extract_info(url, download=True)
+    except Exception as exc:
+        if _ytdlp_bot_blocked(str(exc)):
+            raise BotDetectionError(
+                "YouTube blocked the download with bot-detection. "
+                "Set the YOUTUBE_COOKIES env var (base64 of a Netscape cookies.txt "
+                "exported from a logged-in YouTube session) and redeploy."
+            ) from exc
+        raise
 
     if info is None:
         raise RuntimeError(f"Failed to extract info for {url}")

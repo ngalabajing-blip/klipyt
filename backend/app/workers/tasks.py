@@ -10,9 +10,9 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import Session
 
 from app.config import settings
-from app.db.models import Clip, Job, JobStatus
-from app.pipeline.ingest import download_video
+from app.db.models import Clip, Job
 from app.pipeline.clip import CutOptions, cut_clip, make_thumbnail
+from app.pipeline.ingest import download_video
 from app.storage.s3 import get_storage
 
 logger = logging.getLogger(__name__)

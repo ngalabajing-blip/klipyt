@@ -6,16 +6,13 @@ import os
 
 from fastapi import APIRouter
 
-from app import __version__
-from app.api.schemas import HealthOut
-from app.config import settings
-
 router = APIRouter(tags=["meta"])
 
 
 @router.get("/health")
 async def health():
-    import subprocess, shutil
+    import shutil
+    import subprocess
     deno = shutil.which("deno")
     ytdlp = shutil.which("yt-dlp")
     deno_ver = ""
@@ -45,7 +42,8 @@ async def health():
 @router.get("/debug/ytdlp")
 async def debug_ytdlp(url: str = "https://youtu.be/dQw4w9WgXcQ"):
     """Debug endpoint: run yt-dlp --list-formats and return output."""
-    import subprocess, base64, tempfile
+    import subprocess
+
     from app.pipeline.ingest import _get_cookiefile
     cmd = ["yt-dlp", "--list-formats", "--no-check-certificates"]
     cookiefile = _get_cookiefile()

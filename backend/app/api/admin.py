@@ -6,7 +6,6 @@ import logging
 import os
 import traceback
 
-import sqlalchemy as sa
 from fastapi import APIRouter
 from sqlalchemy import create_engine, text
 

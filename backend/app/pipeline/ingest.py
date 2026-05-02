@@ -62,6 +62,7 @@ def download_video(
             f"bestvideo[height<={max_height}]+bestaudio/"
             f"best[height<={max_height}]/best"
         ),
+        "format_sort": ["res:1080", "ext:mp4:m4a"],
         "merge_output_format": "mp4",
         "noplaylist": True,
         "quiet": True,

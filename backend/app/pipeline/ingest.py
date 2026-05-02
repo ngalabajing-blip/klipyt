@@ -139,6 +139,10 @@ def _try_download_subtitles(
         "yt-dlp",
         "--write-auto-subs",
         "--skip-download",
+        # Stay on the single video the user asked for. Without this a URL
+        # like ?v=ABC&list=PLxyz makes yt-dlp iterate the entire playlist's
+        # subtitles and almost always trip the 120s timeout.
+        "--no-playlist",
         # Original-language only. Wider patterns ("en.*") trigger 12+ requests.
         "--sub-langs", "en,id",
         "--sub-format", "vtt",

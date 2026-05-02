@@ -40,3 +40,25 @@ async def health():
         "ytdlp_version": ytdlp_ver,
         "path": os.environ.get("PATH", ""),
     }
+
+
+@router.get("/debug/ytdlp")
+async def debug_ytdlp(url: str = "https://youtu.be/dQw4w9WgXcQ"):
+    """Debug endpoint: run yt-dlp --list-formats and return output."""
+    import subprocess, base64, tempfile
+    from app.pipeline.ingest import _get_cookiefile
+    cmd = ["yt-dlp", "--list-formats", "--no-check-certificates"]
+    cookiefile = _get_cookiefile()
+    if cookiefile:
+        cmd.extend(["--cookies", cookiefile])
+    cmd.append(url)
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        return {
+            "returncode": r.returncode,
+            "stdout": r.stdout[-3000:],
+            "stderr": r.stderr[-3000:],
+            "cookiefile": cookiefile,
+        }
+    except Exception as e:
+        return {"error": str(e)}

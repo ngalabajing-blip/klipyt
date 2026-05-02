@@ -24,10 +24,12 @@ RUN pip install --upgrade pip && pip install -e .
 
 COPY app ./app
 COPY tests ./tests
+COPY start.sh ./start.sh
+RUN chmod +x ./start.sh
 
 EXPOSE 8000
 
 # Process model: API by default. Override CMD to run the worker.
 #   web:    uvicorn app.main:app --host 0.0.0.0 --port 8000
 #   worker: python -m app.workers.queue
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT:-8000}"]
+CMD ["sh", "./start.sh"]

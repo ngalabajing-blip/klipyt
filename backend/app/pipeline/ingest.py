@@ -49,6 +49,7 @@ def _download_via_cli(url: str, out_dir: Path, max_height: int, cookiefile: str 
         "--write-thumbnail",
         "--convert-thumbnails", "jpg",
         "--no-check-certificates",
+        "--remote-components", "ejs:github",
         "-o", str(out_dir / "%(id)s.%(ext)s"),
     ]
     if cookiefile:
@@ -157,6 +158,7 @@ def download_video(
         "ignoreerrors": False,
         "writethumbnail": True,
         "convert_thumbnails": "jpg",
+        "extractor_args": {"youtube": {"player_client": ["web"]}},
         "http_headers": {
             "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
         },

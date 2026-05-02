@@ -31,6 +31,7 @@ COPY pyproject.toml ./
 RUN pip install --upgrade pip && pip install -e .
 
 COPY app ./app
+COPY scripts ./scripts
 COPY tests ./tests
 COPY start.sh ./start.sh
 RUN chmod +x ./start.sh

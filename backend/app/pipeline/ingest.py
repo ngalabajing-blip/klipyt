@@ -2,11 +2,9 @@
 
 from __future__ import annotations
 
-import base64
 import logging
 import os
 import subprocess
-import tempfile
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -163,19 +161,14 @@ def _try_download_subtitles(
 
 
 def _get_cookiefile() -> str | None:
-    """Return path to a cookie file from YOUTUBE_COOKIES env var (base64-encoded Netscape format)."""
-    b64 = os.environ.get("YOUTUBE_COOKIES")
-    if not b64:
-        return None
-    try:
-        data = base64.b64decode(b64)
-        tmp = tempfile.NamedTemporaryFile(delete=False, suffix=".txt", mode="wb")
-        tmp.write(data)
-        tmp.close()
-        return tmp.name
-    except Exception:
-        logger.warning("Failed to decode YOUTUBE_COOKIES env var", exc_info=True)
-        return None
+    """Return a path to the current YouTube cookie file, or None.
+
+    Delegates to ``app.auth.cookies`` which prefers the rotating copy in
+    object storage (written by the refresher service) and falls back to
+    the ``YOUTUBE_COOKIES`` env var.
+    """
+    from app.auth.cookies import get_cookie_file
+    return get_cookie_file()
 
 
 @dataclass(slots=True)

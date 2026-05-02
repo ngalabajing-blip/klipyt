@@ -48,10 +48,14 @@ _DEFAULT_FORMAT = (
     "best[height<=720]/best"
 )
 
-# Cookie-respecting player clients in fallback order. Notably *not* `ios`,
-# which silently drops cookies — see
-# https://dev.to/nareshipme/fixing-yt-dlp-in-docker-n-challenge-ejs-scripts-deno-2x-and-the-playerclientios-cookie-trap-54d6
-_PLAYER_CLIENTS = "web,mweb,tv,android"
+# Cookie-respecting player clients in fallback order. ``web`` and
+# ``mweb`` benefit from a Proof-of-Origin Token supplied by the bgutil
+# sidecar started in ``start.sh``; ``tv`` is the non-POT fallback.
+# ``ios`` is intentionally excluded because it silently drops cookies
+# (see https://dev.to/nareshipme/fixing-yt-dlp-in-docker-...-ios-cookie-trap-54d6),
+# and ``android`` was dropped after Google retired the public Innertube
+# API variants yt-dlp could spoof.
+_PLAYER_CLIENTS = "web,mweb,tv"
 
 
 def _ytdlp_bot_blocked(stderr: str) -> bool:

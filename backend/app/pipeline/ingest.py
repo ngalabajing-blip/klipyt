@@ -79,11 +79,6 @@ def _download_via_cli(url: str, out_dir: Path, max_height: int, cookiefile: str 
         "--no-playlist",
         "--write-thumbnail",
         "--convert-thumbnails", "jpg",
-        # Pull YouTube auto-generated captions so the highlight pipeline can
-        # run MiMo against them — saves us from loading Whisper on the worker.
-        "--write-auto-subs",
-        "--sub-langs", "en.*,id.*,en,id",
-        "--sub-format", "vtt",
         "--no-check-certificates",
         "--remote-components", "ejs:github",
         "--extractor-args", f"youtube:player_client={_PLAYER_CLIENTS}",
@@ -126,6 +121,41 @@ def _download_via_cli(url: str, out_dir: Path, max_height: int, cookiefile: str 
     except Exception as e:
         logger.warning("yt-dlp CLI error: %s", e)
         return None
+
+
+def _try_download_subtitles(
+    url: str,
+    out_dir: Path,
+    cookiefile: str | None,
+) -> None:
+    """Pull YouTube auto-captions in a separate, best-effort pass.
+
+    yt-dlp treats subtitle errors as fatal when bundled with the main download.
+    YouTube also rate-limits the timedtext endpoint aggressively (HTTP 429),
+    so we run subs in their own subprocess and swallow any non-zero exit. The
+    caller falls back to even-split clips when no .vtt is found on disk.
+    """
+    cmd = [
+        "yt-dlp",
+        "--write-auto-subs",
+        "--skip-download",
+        # Original-language only. Wider patterns ("en.*") trigger 12+ requests.
+        "--sub-langs", "en,id",
+        "--sub-format", "vtt",
+        "--no-warnings",
+        "--no-check-certificates",
+        "--socket-timeout", "30",
+        "-o", str(out_dir / "%(id)s.%(ext)s"),
+    ]
+    if cookiefile:
+        cmd.extend(["--cookies", cookiefile])
+    cmd.append(url)
+    try:
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=120)
+        if r.returncode != 0:
+            logger.info("Auto-subs unavailable (rc=%d): %s", r.returncode, r.stderr[-200:])
+    except Exception as exc:
+        logger.info("Auto-subs pass skipped: %s", exc)
 
 
 def _get_cookiefile() -> str | None:
@@ -192,6 +222,9 @@ def download_video(
         info = _json.loads(info_result.stdout) if info_result.returncode == 0 else {}
         thumb_files = list(video_path.parent.glob(f"{video_path.stem}.*"))
         thumb_files = [t for t in thumb_files if t.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}]
+        # Subtitle pull is a *separate* best-effort pass so a YouTube 429 on
+        # the subs endpoint doesn't fail the whole video download.
+        _try_download_subtitles(url, video_path.parent, cookiefile)
         from app.pipeline.captions import find_subtitles_for
         subtitle_path = find_subtitles_for(video_path)
         return IngestResult(
@@ -216,9 +249,6 @@ def download_video(
         "ignoreerrors": False,
         "writethumbnail": True,
         "convert_thumbnails": "jpg",
-        "writeautomaticsub": True,
-        "subtitleslangs": ["en.*", "id.*", "en", "id"],
-        "subtitlesformat": "vtt",
         "retries": 5,
         "fragment_retries": 5,
         "extractor_retries": 3,
@@ -259,6 +289,7 @@ def download_video(
     thumb_files = [c for c in candidates if c.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}]
     thumb_path = str(thumb_files[0]) if thumb_files else info.get("thumbnail")
 
+    _try_download_subtitles(url, video_path.parent, cookiefile)
     from app.pipeline.captions import find_subtitles_for
     subtitle_path = find_subtitles_for(video_path)
 

@@ -38,6 +38,41 @@ def _ensure_deno() -> None:
         os.environ["PATH"] = deno_bin + ":" + os.environ.get("PATH", "")
 
 
+def _download_via_cli(url: str, out_dir: Path, max_height: int, cookiefile: str | None) -> Path | None:
+    """Try downloading via yt-dlp CLI subprocess (better deno/PATH integration)."""
+    import glob as _glob
+    cmd = [
+        "yt-dlp",
+        "-f", "best",
+        "--merge-output-format", "mp4",
+        "--no-playlist",
+        "--write-thumbnail",
+        "--convert-thumbnails", "jpg",
+        "--no-check-certificates",
+        "-o", str(out_dir / "%(id)s.%(ext)s"),
+    ]
+    if cookiefile:
+        cmd.extend(["--cookies", cookiefile])
+    cmd.append(url)
+    try:
+        logger.info("yt-dlp CLI: %s", " ".join(cmd[:8]))
+        r = subprocess.run(cmd, capture_output=True, text=True, timeout=600)
+        logger.info("yt-dlp stdout: %s", r.stdout[-500:] if r.stdout else "empty")
+        logger.info("yt-dlp stderr: %s", r.stderr[-500:] if r.stderr else "empty")
+        if r.returncode != 0:
+            logger.warning("yt-dlp CLI failed (rc=%d): %s", r.returncode, r.stderr[-300:])
+            return None
+        # Find the downloaded video file
+        video_exts = {".mp4", ".mkv", ".webm"}
+        for f in sorted(out_dir.iterdir(), key=lambda p: p.stat().st_mtime, reverse=True):
+            if f.suffix.lower() in video_exts:
+                return f
+        return None
+    except Exception as e:
+        logger.warning("yt-dlp CLI error: %s", e)
+        return None
+
+
 def _get_cookiefile() -> str | None:
     """Return path to a cookie file from YOUTUBE_COOKIES env var (base64-encoded Netscape format)."""
     b64 = os.environ.get("YOUTUBE_COOKIES")
@@ -85,6 +120,33 @@ def download_video(
     except Exception as e:
         logger.warning("Deno not accessible: %s", e)
 
+    cookiefile = cookiefile or _get_cookiefile()
+
+    # Use yt-dlp CLI via subprocess for better deno integration
+    video_path = _download_via_cli(url, out_dir, max_height, cookiefile)
+
+    if video_path:
+        # Get metadata
+        info_cmd = ["yt-dlp", "--dump-json", "--no-download"]
+        if cookiefile:
+            info_cmd.extend(["--cookies", cookiefile])
+        info_cmd.append(url)
+        info_result = subprocess.run(info_cmd, capture_output=True, text=True, timeout=120)
+        import json as _json
+        info = _json.loads(info_result.stdout) if info_result.returncode == 0 else {}
+        thumb_files = list(video_path.parent.glob(f"{video_path.stem}.*"))
+        thumb_files = [t for t in thumb_files if t.suffix.lower() in {".jpg", ".jpeg", ".png", ".webp"}]
+        return IngestResult(
+            path=video_path,
+            title=info.get("title") or url,
+            duration=float(info.get("duration") or 0.0),
+            thumbnail=str(thumb_files[0]) if thumb_files else info.get("thumbnail"),
+            language=info.get("language"),
+            extractor=info.get("extractor", "unknown"),
+            info=info,
+        )
+
+    # Fallback to Python API
     ydl_opts: dict[str, Any] = {
         "outtmpl": str(out_dir / "%(id)s.%(ext)s"),
         "format": "best",
@@ -104,10 +166,6 @@ def download_video(
     }
     if cookiefile:
         ydl_opts["cookiefile"] = cookiefile
-    else:
-        auto_cookie = _get_cookiefile()
-        if auto_cookie:
-            ydl_opts["cookiefile"] = auto_cookie
 
     with YoutubeDL(ydl_opts) as ydl:
         info = ydl.extract_info(url, download=True)
